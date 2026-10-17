@@ -1,0 +1,9 @@
+build/
+data/
+__pycache__/
+*.pyc
+.pio/
+third_party/
+firmware/inc/generated/
+results/ecg_segment.npz
+results/reference.npz

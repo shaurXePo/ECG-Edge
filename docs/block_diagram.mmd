@@ -1,0 +1,25 @@
+flowchart LR
+  subgraph PY["Python (PC)  scripts/"]
+    A["MIT-BIH record 100<br/>10 s, 360 Hz (wfdb)"] --> B["quantise<br/>mV → int16 (Q15, ±5 mV FS)"]
+    D["design float64 filters<br/>FIR windowed-sinc, Butterworth SOS, notch"] --> E["scale + quantise<br/>Q15 / Q31, postShift"]
+    B --> H["export_headers.py"]
+    E --> H
+    D --> R["float64 reference<br/>(sosfilt / convolve)"]
+    B --> R
+  end
+  H -->|"ecg_params.h<br/>ecg_coeffs.h<br/>ecg_testvec.h"| FW
+  subgraph FW["Firmware  firmware/  (portable C + CMSIS-DSP)"]
+    S["input source<br/>ecg_source_vector (flash)<br/>ecg_source_ring (ADC / UART ISR hook)"] --> P["block pipeline<br/>ecg_pipeline.c<br/>DWT cycle timing"]
+    P --> F["filters (impl table)<br/>f32 · Q15 CMSIS · Q15 manual · Q31<br/>FIR · biquad cascade · Pan-Tompkins"]
+    F --> O["CSV writer<br/>ecg_out.c (no printf)"]
+  end
+  subgraph BSP["Board layer  board/  (ecg_platform.h)"]
+    U["UART2 / semihosting / stdout"]
+    T["DWT->CYCCNT"]
+    K["startup · clock · FPU · linker script · stack paint"]
+  end
+  P -.cycles.-> T
+  O --> U
+  U -->|"CSV log"| V["validate.py<br/>SNR · max error · plots · R-peak Se/PPV"]
+  R --> V
+  V --> X["results/ table + PNGs"]

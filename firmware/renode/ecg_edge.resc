@@ -1,0 +1,33 @@
+# ECG-Edge on a simulated STM32F407 (Cortex-M4F) in Renode.
+#
+#   renode --disable-xwt --console firmware/renode/ecg_edge.resc        (interactive)
+#   ./firmware/renode/run_renode.sh                                     (headless, writes the CSV log)
+#
+# Variables (override with  renode -e '$bin=@other.elf; include @...'):
+#   $bin  firmware ELF built with -DECG_TARGET=renode
+#   $log  file that receives everything the firmware prints on USART2
+#   $sim  how much VIRTUAL time to run (Renode UARTs are instantaneous, so the run needs only a few virtual seconds)
+
+$bin ?= @build/renode/ecg_edge.elf
+$log ?= @results/renode_run.log
+$sim ?= "00:00:10"
+
+# Renode does not model the DWT cycle counter (0xE0001004) and warns on EVERY read; silence it.
+# (Cycle counts from Renode are meaningless anyway - use it for functional validation only.)
+logLevel 3
+
+using sysbus
+mach create "ecg-edge"
+machine LoadPlatformDescription @platforms/boards/stm32f4_discovery-kit.repl
+
+# Our firmware only needs USART2 + RAM + flash; everything else in the model is ignored.
+sysbus LoadELF $bin
+
+# Everything written to USART2's data register goes into the log file (immediate flush).
+sysbus.usart2 CreateFileBackend $log true
+
+# Optional: open a terminal window (needs a display; omit when headless)
+# showAnalyzer sysbus.usart2
+
+emulation RunFor $sim
+quit

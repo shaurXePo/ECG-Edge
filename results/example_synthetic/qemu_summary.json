@@ -1,0 +1,413 @@
+{
+  "label": "qemu",
+  "platform": "QEMU netduinoplus2/STM32F405 (timing NOT meaningful)",
+  "cpu_hz": 16000000,
+  "block": 36,
+  "cycle_counter": false,
+  "stack": [
+    840,
+    107472
+  ],
+  "peaks": {
+    "tp": 11,
+    "fn": 0,
+    "fp": 0,
+    "sensitivity": 1.0,
+    "ppv": 1.0,
+    "mean_offset_samples": 11.909090909090908,
+    "std_offset_samples": 7.229416491662198,
+    "n_ann": 11,
+    "n_det": 11,
+    "tol_ms": 150.0
+  },
+  "cross": {
+    "fir63_f32": {
+      "identical": false,
+      "max_diff": 0.0019999999985884642
+    },
+    "fir127_f32": {
+      "identical": false,
+      "max_diff": 0.0019999999985884642
+    },
+    "fir255_f32": {
+      "identical": false,
+      "max_diff": 0.0010000000002037268
+    },
+    "fir63_q15": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "fir127_q15": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "fir255_q15": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "fir63_q15m": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "fir127_q15m": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "fir255_q15m": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "iir2_f32": {
+      "identical": false,
+      "max_diff": 0.37400000000002365
+    },
+    "iir4_f32": {
+      "identical": false,
+      "max_diff": 0.27700000000004366
+    },
+    "iir2_q15": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "iir4_q15": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "iir2_q31": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "iir4_q31": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "iirh_f32": {
+      "identical": false,
+      "max_diff": 0.004000000000132786
+    },
+    "iirh_q15": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "iirh_q15r": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "iirh_q31": {
+      "identical": true,
+      "max_diff": 0.0
+    },
+    "pt_q15": {
+      "identical": true,
+      "max_diff": 0.0
+    }
+  },
+  "problems": [],
+  "segment": "SYNTHETIC 10s",
+  "rows": [
+    {
+      "impl": "fir63_f32",
+      "fmt": "f32",
+      "snr_db": 133.20065156468985,
+      "snr_ac_db": 133.2309611214148,
+      "snr_steady_db": 132.9441795772094,
+      "max_err_lsb": 0.00462659005097521,
+      "max_err_uv": 0.0007059616166649185,
+      "bias_lsb": 3.407636502497613e-05,
+      "ideal_q15_snr_db": 76.15673482652572,
+      "rail_hits": 0,
+      "enob": 21.833995276526554,
+      "group_delay_ms": 86.11111111111111,
+      "flash_bytes": 560,
+      "ram_bytes": 776
+    },
+    {
+      "impl": "fir127_f32",
+      "fmt": "f32",
+      "snr_db": 131.6044435495511,
+      "snr_ac_db": 131.60616451708037,
+      "snr_steady_db": 131.4003385339722,
+      "max_err_lsb": 0.0032475345633429242,
+      "max_err_uv": 0.0004955344487522773,
+      "bias_lsb": 9.147546728353217e-06,
+      "ideal_q15_snr_db": 75.69107506199829,
+      "rail_hits": 0,
+      "enob": 21.568844443447027,
+      "group_delay_ms": 175.0,
+      "flash_bytes": 816,
+      "ram_bytes": 1032
+    },
+    {
+      "impl": "fir255_f32",
+      "fmt": "f32",
+      "snr_db": 129.08702217783807,
+      "snr_ac_db": 129.0931964391733,
+      "snr_steady_db": 129.09400789717412,
+      "max_err_lsb": 0.005877443730241794,
+      "max_err_uv": 0.0008968267410647268,
+      "bias_lsb": 2.0645006799264984e-05,
+      "ideal_q15_snr_db": 74.66812844452497,
+      "rail_hits": 0,
+      "enob": 21.1506681358535,
+      "group_delay_ms": 352.7777777777778,
+      "flash_bytes": 1328,
+      "ram_bytes": 1544
+    },
+    {
+      "impl": "fir63_q15",
+      "fmt": "q15",
+      "snr_db": 70.4248090316997,
+      "snr_ac_db": 74.80486716711043,
+      "snr_steady_db": 69.64823925872794,
+      "max_err_lsb": 1.330931425676681,
+      "max_err_uv": 0.20308401881052873,
+      "bias_lsb": -0.4483092569683105,
+      "ideal_q15_snr_db": 76.15673482652572,
+      "rail_hits": 0,
+      "enob": 11.406114457092972,
+      "group_delay_ms": 86.11111111111111,
+      "flash_bytes": 464,
+      "ram_bytes": 392
+    },
+    {
+      "impl": "fir127_q15",
+      "fmt": "q15",
+      "snr_db": 68.71493231589751,
+      "snr_ac_db": 74.31411444124032,
+      "snr_steady_db": 68.55138351061493,
+      "max_err_lsb": 1.3924427563647441,
+      "max_err_uv": 0.2124699030097571,
+      "bias_lsb": -0.545576685786605,
+      "ideal_q15_snr_db": 75.69107506199829,
+      "rail_hits": 0,
+      "enob": 11.12208178004942,
+      "group_delay_ms": 175.0,
+      "flash_bytes": 592,
+      "ram_bytes": 520
+    },
+    {
+      "impl": "fir255_q15",
+      "fmt": "q15",
+      "snr_db": 66.45621882932359,
+      "snr_ac_db": 70.79242551082974,
+      "snr_steady_db": 66.54974137485351,
+      "max_err_lsb": 1.9195604734045446,
+      "max_err_uv": 0.2929016835639259,
+      "bias_lsb": -0.5892679661043123,
+      "ideal_q15_snr_db": 74.66812844452497,
+      "rail_hits": 0,
+      "enob": 10.746880204206576,
+      "group_delay_ms": 352.7777777777778,
+      "flash_bytes": 848,
+      "ram_bytes": 776
+    },
+    {
+      "impl": "fir63_q15m",
+      "fmt": "q15m",
+      "snr_db": 74.51079920629832,
+      "snr_ac_db": 74.59971307251368,
+      "snr_steady_db": 74.15728175172478,
+      "max_err_lsb": 1.130399610651466,
+      "max_err_uv": 0.17248529215262848,
+      "bias_lsb": 0.05002407636502291,
+      "ideal_q15_snr_db": 76.15673482652572,
+      "rail_hits": 0,
+      "enob": 12.084850366494736,
+      "group_delay_ms": 86.11111111111111,
+      "flash_bytes": 588,
+      "ram_bytes": 384
+    },
+    {
+      "impl": "fir127_q15m",
+      "fmt": "q15m",
+      "snr_db": 74.31794620346102,
+      "snr_ac_db": 74.40248468681288,
+      "snr_steady_db": 74.0778342795679,
+      "max_err_lsb": 0.9522577133361665,
+      "max_err_uv": 0.14530299580935158,
+      "bias_lsb": -0.046687796897716065,
+      "ideal_q15_snr_db": 75.69107506199829,
+      "rail_hits": 0,
+      "enob": 12.052814983963625,
+      "group_delay_ms": 175.0,
+      "flash_bytes": 716,
+      "ram_bytes": 512
+    },
+    {
+      "impl": "fir255_q15m",
+      "fmt": "q15m",
+      "snr_db": 70.6354525426748,
+      "snr_ac_db": 70.80880475335277,
+      "snr_steady_db": 70.62239602508028,
+      "max_err_lsb": 1.3909491626909585,
+      "max_err_uv": 0.2122419987016233,
+      "bias_lsb": -0.09065685499320117,
+      "ideal_q15_snr_db": 74.66812844452497,
+      "rail_hits": 0,
+      "enob": 11.44110507353402,
+      "group_delay_ms": 352.7777777777778,
+      "flash_bytes": 976,
+      "ram_bytes": 768
+    },
+    {
+      "impl": "iir2_f32",
+      "fmt": "f32",
+      "snr_db": 80.78794120180217,
+      "snr_ac_db": 80.78903919142627,
+      "snr_steady_db": 80.45532627111967,
+      "max_err_lsb": 0.363067651587869,
+      "max_err_uv": 0.055399727109965366,
+      "bias_lsb": 0.0018316924097100597,
+      "ideal_q15_snr_db": 72.70839179253997,
+      "rail_hits": 0,
+      "enob": 13.127564983688067,
+      "group_delay_ms": 6.988057300417548,
+      "flash_bytes": 368,
+      "ram_bytes": 32
+    },
+    {
+      "impl": "iir4_f32",
+      "fmt": "f32",
+      "snr_db": 76.54778183983484,
+      "snr_ac_db": 76.5709184807267,
+      "snr_steady_db": 76.41942342689202,
+      "max_err_lsb": 0.44589282083188664,
+      "max_err_uv": 0.06803784497556864,
+      "bias_lsb": -0.012910626435384265,
+      "ideal_q15_snr_db": 72.34315764962875,
+      "rail_hits": 0,
+      "enob": 12.423219574723396,
+      "group_delay_ms": 12.581272357127412,
+      "flash_bytes": 408,
+      "ram_bytes": 48
+    },
+    {
+      "impl": "iir2_q15",
+      "fmt": "q15",
+      "snr_db": -16.597241901972744,
+      "snr_ac_db": -4.429068523169035,
+      "snr_steady_db": -16.892725553257293,
+      "max_err_lsb": 11633.221967244008,
+      "max_err_uv": 1775.088801154176,
+      "bias_lsb": -8262.938943585368,
+      "ideal_q15_snr_db": 72.70839179253997,
+      "rail_hits": 0,
+      "enob": -3.0493757312247087,
+      "group_delay_ms": 6.988057300417548,
+      "flash_bytes": 456,
+      "ram_bytes": 40
+    },
+    {
+      "impl": "iir4_q15",
+      "fmt": "q15",
+      "snr_db": -28.506976287049493,
+      "snr_ac_db": -14.666892331165585,
+      "snr_steady_db": -28.846039484371445,
+      "max_err_lsb": 39612.84044288998,
+      "max_err_uv": 6044.439764845273,
+      "bias_lsb": -31034.57855090421,
+      "ideal_q15_snr_db": 72.34315764962875,
+      "rail_hits": 3275,
+      "enob": -5.027736924759052,
+      "group_delay_ms": 12.581272357127412,
+      "flash_bytes": 480,
+      "ram_bytes": 56
+    },
+    {
+      "impl": "iir2_q31",
+      "fmt": "q31",
+      "snr_db": 82.44482210791938,
+      "snr_ac_db": 97.45943754000847,
+      "snr_steady_db": 82.14100791093095,
+      "max_err_lsb": 0.10426088680628709,
+      "max_err_uv": 0.01590894879246324,
+      "bias_lsb": -0.09368608536806618,
+      "ideal_q15_snr_db": 72.70839179253997,
+      "rail_hits": 0,
+      "enob": 13.402794370086276,
+      "group_delay_ms": 6.988057300417548,
+      "flash_bytes": 452,
+      "ram_bytes": 64
+    },
+    {
+      "impl": "iir4_q31",
+      "fmt": "q31",
+      "snr_db": 75.31081175522476,
+      "snr_ac_db": 90.58897753767269,
+      "snr_steady_db": 75.15528089259634,
+      "max_err_lsb": 0.2608852922125493,
+      "max_err_uv": 0.03980793643379964,
+      "bias_lsb": -0.20117673754649673,
+      "ideal_q15_snr_db": 72.34315764962875,
+      "rail_hits": 0,
+      "enob": 12.217742816482518,
+      "group_delay_ms": 12.581272357127412,
+      "flash_bytes": 492,
+      "ram_bytes": 96
+    },
+    {
+      "impl": "iirh_f32",
+      "fmt": "f32",
+      "snr_db": 113.99279286155641,
+      "snr_ac_db": 114.00181936986458,
+      "snr_steady_db": 114.06521022455041,
+      "max_err_lsb": 0.006990121757553425,
+      "max_err_uv": 0.0010666079341969947,
+      "bias_lsb": -0.00012078500668719479,
+      "ideal_q15_snr_db": 73.16496894942999,
+      "rail_hits": 0,
+      "enob": 18.64332107334824,
+      "group_delay_ms": 6.863488827097017,
+      "flash_bytes": 388,
+      "ram_bytes": 40
+    },
+    {
+      "impl": "iirh_q15",
+      "fmt": "q15",
+      "snr_db": 23.122118215177217,
+      "snr_ac_db": 42.27539850936891,
+      "snr_steady_db": 23.061886302173626,
+      "max_err_lsb": 108.95027474815338,
+      "max_err_uv": 16.624492606834927,
+      "bias_lsb": -92.09786439611779,
+      "ideal_q15_snr_db": 73.16496894942999,
+      "rail_hits": 0,
+      "enob": 3.5485246204613317,
+      "group_delay_ms": 6.863488827097017,
+      "flash_bytes": 468,
+      "ram_bytes": 48
+    },
+    {
+      "impl": "iirh_q15r",
+      "fmt": "q15r",
+      "snr_db": 50.06514772592442,
+      "snr_ac_db": 50.512068808555306,
+      "snr_steady_db": 50.31993883109703,
+      "max_err_lsb": 14.724601966439195,
+      "max_err_uv": 2.246795954351684,
+      "bias_lsb": -1.302864396117799,
+      "ideal_q15_snr_db": 73.16496894942999,
+      "rail_hits": 0,
+      "enob": 8.024110917927645,
+      "group_delay_ms": 6.863488827097017,
+      "flash_bytes": 412,
+      "ram_bytes": 32
+    },
+    {
+      "impl": "iirh_q31",
+      "fmt": "q31",
+      "snr_db": 119.12070757446688,
+      "snr_ac_db": 131.73061595447425,
+      "snr_steady_db": 118.99925660342313,
+      "max_err_lsb": 0.00214767458373899,
+      "max_err_uv": 0.0003277091344816574,
+      "bias_lsb": -0.0014280072289114115,
+      "ideal_q15_snr_db": 73.16496894942999,
+      "rail_hits": 0,
+      "enob": 19.495134148582537,
+      "group_delay_ms": 6.863488827097017,
+      "flash_bytes": 472,
+      "ram_bytes": 80
+    }
+  ]
+}

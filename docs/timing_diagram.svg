@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 430" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="980" height="430" fill="#ffffff"/>
+  <text x="20" y="26" font-size="16" font-weight="bold">ECG-Edge: block timing and latency budget</text>
+
+  <!-- time axis -->
+  <line x1="40" y1="395" x2="950" y2="395" stroke="#333" stroke-width="1.5"/>
+  <polygon points="950,395 940,390 940,400" fill="#333"/>
+  <text x="900" y="418">time</text>
+
+  <!-- row 1: sample arrivals -->
+  <text x="20" y="62" font-weight="bold">1  ADC / timer ISR  (one sample every T_s = 1/fs)</text>
+  <g stroke="#1f77b4" stroke-width="2">
+    <line x1="60" y1="70" x2="60" y2="92"/><line x1="90" y1="70" x2="90" y2="92"/><line x1="120" y1="70" x2="120" y2="92"/>
+    <line x1="150" y1="70" x2="150" y2="92"/><line x1="180" y1="70" x2="180" y2="92"/><line x1="210" y1="70" x2="210" y2="92"/>
+    <line x1="240" y1="70" x2="240" y2="92"/><line x1="270" y1="70" x2="270" y2="92"/><line x1="300" y1="70" x2="300" y2="92"/>
+    <line x1="330" y1="70" x2="330" y2="92"/><line x1="360" y1="70" x2="360" y2="92"/><line x1="390" y1="70" x2="390" y2="92"/>
+    <line x1="420" y1="70" x2="420" y2="92"/><line x1="450" y1="70" x2="450" y2="92"/><line x1="480" y1="70" x2="480" y2="92"/>
+    <line x1="510" y1="70" x2="510" y2="92"/><line x1="540" y1="70" x2="540" y2="92"/><line x1="570" y1="70" x2="570" y2="92"/>
+    <line x1="600" y1="70" x2="600" y2="92"/><line x1="630" y1="70" x2="630" y2="92"/><line x1="660" y1="70" x2="660" y2="92"/>
+    <line x1="690" y1="70" x2="690" y2="92"/><line x1="720" y1="70" x2="720" y2="92"/><line x1="750" y1="70" x2="750" y2="92"/>
+    <line x1="780" y1="70" x2="780" y2="92"/><line x1="810" y1="70" x2="810" y2="92"/><line x1="840" y1="70" x2="840" y2="92"/>
+    <line x1="870" y1="70" x2="870" y2="92"/><line x1="900" y1="70" x2="900" y2="92"/>
+  </g>
+  <text x="62" y="108" fill="#1f77b4">x[0]</text><text x="92" y="108" fill="#1f77b4">x[1]</text><text x="140" y="108" fill="#1f77b4">...</text>
+
+  <!-- row 2: block filling -->
+  <text x="20" y="142" font-weight="bold">2  ring buffer fills one block  (N = block size)</text>
+  <rect x="60" y="150" width="420" height="26" fill="#cfe3f5" stroke="#1f77b4"/>
+  <text x="70" y="168">block k fills:  T_fill = N / fs</text>
+  <rect x="480" y="150" width="420" height="26" fill="#e8f1fa" stroke="#1f77b4" stroke-dasharray="4 3"/>
+  <text x="490" y="168">block k+1 fills while block k is processed</text>
+
+  <!-- row 3: processing -->
+  <text x="20" y="212" font-weight="bold">3  CPU: process() on block k   (T_proc = cycles / f_cpu, measured with DWT->CYCCNT)</text>
+  <rect x="480" y="220" width="70" height="26" fill="#f4b183" stroke="#c55a11"/>
+  <text x="488" y="238" font-size="12">T_proc</text>
+  <rect x="550" y="220" width="350" height="26" fill="#f2f2f2" stroke="#999" stroke-dasharray="3 3"/>
+  <text x="600" y="238" fill="#555">idle: WFI (sleep) - this is the CPU-load headroom</text>
+  <text x="60" y="238" fill="#555">idle / processing previous block</text>
+
+  <!-- row 4: output -->
+  <text x="20" y="282" font-weight="bold">4  output block k available</text>
+  <rect x="550" y="290" width="14" height="26" fill="#70ad47" stroke="#385723"/>
+  <text x="570" y="308">y[k*N ... k*N+N-1] ready (CSV / DAC / detector)</text>
+
+  <!-- latency brackets -->
+  <g stroke="#c00000" stroke-width="1.5" fill="none">
+    <line x1="60" y1="340" x2="560" y2="340"/><line x1="60" y1="334" x2="60" y2="346"/><line x1="560" y1="334" x2="560" y2="346"/>
+  </g>
+  <text x="70" y="358" fill="#c00000" font-weight="bold">worst-case I/O latency of the OLDEST sample in a block = T_fill + T_proc</text>
+  <text x="70" y="376" fill="#c00000">total delay seen by the signal = T_fill + T_proc + group delay of the filter</text>
+
+  <text x="640" y="430" font-size="11" fill="#555"></text>
+</svg>

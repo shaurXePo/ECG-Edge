@@ -1,0 +1,5 @@
+numpy>=1.24
+scipy>=1.10
+matplotlib>=3.7
+wfdb>=4.1        # MIT-BIH download + annotation parsing
+pyserial>=3.5    # only for scripts/capture_uart.py (real board)

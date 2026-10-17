@@ -1,0 +1,17 @@
+Butterworth order 2 + notch, postShift = 2  ->  one coefficient LSB = 1.221e-04
+
+section   A(1)=1+a1+a2  DC gain 1/A(1)   A(1)/LSB   comment
+      0      3.171e-01             3.2     2598.0   
+      1      7.750e-05         12903.2        0.6   <-- poles ~ 0.5 Hz: A(1) is only a few LSBs: unrepresentable
+      2      9.828e-01             1.0     8051.5   
+
+SNR vs float64 (bit-exact Q15 model):
+structure                scaling  arithmetic   SNR dB  bias LSB
+Butterworth+notch           none    truncate   -10.07   -3966.4
+Butterworth+notch           none       round    15.17     -11.9
+Butterworth+notch           linf    truncate   -16.60   -8262.9
+Butterworth+notch           linf       round    -1.51    -512.2
+hp1 (1st-order HPs)         none    truncate    23.12     -92.1
+hp1 (1st-order HPs)         none       round    50.07      -1.3
+hp1 (1st-order HPs)         linf    truncate    23.12     -92.1
+hp1 (1st-order HPs)         linf       round    50.07      -1.3
