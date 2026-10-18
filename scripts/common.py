@@ -23,7 +23,7 @@ from scipy import signal
 FS_HZ = 360                    # MIT-BIH sampling rate [Hz]
 FULLSCALE_MV = 5.0             # Q15 full scale = +/-5 mV  (1 LSB = 5000 uV / 32768 = 0.1526 uV)
 LSB_UV = FULLSCALE_MV * 1000.0 / 32768.0
-BP_LO_HZ, BP_HI_HZ = 0.5, 40.0 # diagnostic-ECG band (AHA): 0.5 .. 40 Hz
+BP_LO_HZ, BP_HI_HZ = 0.5, 40.0 # monitoring-style ECG band (narrower than diagnostic bandwidths)
 NOTCH_HZ, NOTCH_Q = 60.0, 30.0 # US mains used when MIT-BIH was recorded; Q=30 -> ~2 Hz wide
 PT_LO_HZ, PT_HI_HZ = 5.0, 15.0 # Pan-Tompkins QRS-energy band
 PT_ORDER = 2                   # Butterworth order of the PT band-pass -> 2 biquad sections
