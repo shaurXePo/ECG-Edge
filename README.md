@@ -1,16 +1,88 @@
-# ECG-Edge — real-time fixed-point ECG filtering on a Cortex-M4, validated against Python
+<div align="center">
 
-A 0.5–40 Hz band-pass + 60 Hz notch for 360 Hz ECG (MIT-BIH), implemented four ways
-(float32, CMSIS Q15, hand-written Q15, Q31) as FIR and IIR, run block-by-block on an ARM Cortex-M4F,
-timed with the DWT cycle counter, and checked sample-by-sample against a double-precision Python
-reference. Optional: a fixed-point Pan-Tompkins R-peak detector scored against the MIT-BIH annotations.
+<a id="top"></a>
 
-It extends my Python project **ecg-dsp-toolkit** (same filter specification), taking it from
-"works in NumPy" to "works in 16-bit integers on a microcontroller, and I can prove how wrong it is".
+# ⚡ ECG-Edge
+
+### Real-time **fixed-point** ECG filtering on an ARM Cortex-M4 — proven against a Python reference
+
+*What really happens to a 0.5–40 Hz ECG filter when you squeeze it into 16-bit integers?*
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![MCU](https://img.shields.io/badge/MCU-Cortex--M4F-0091BD)
+![Firmware](https://img.shields.io/badge/firmware-C11-555555)
+![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
+![CMSIS-DSP](https://img.shields.io/badge/CMSIS--DSP-v1.16.2-00979D)
+![Simulation](https://img.shields.io/badge/simulated%20in-QEMU%20%7C%20Renode-success)
+
+[🚀 Quick start](#quickstart) &nbsp;·&nbsp; [🔬 Key finding](#finding) &nbsp;·&nbsp; [🧮 Theory](#theory) &nbsp;·&nbsp; [📊 Results](#results) &nbsp;·&nbsp; [📚 References](#references)
+
+</div>
 
 ---
 
-## 0. Read this first: what is verified, and what is yours to measure
+## ✨ At a glance
+
+ECG-Edge takes a classic ECG conditioning chain — **0.5–40 Hz band-pass + 60 Hz notch at 360 Hz** (MIT-BIH) — and implements it
+as **FIR and IIR in float32, CMSIS Q15, hand-written Q15 and Q31**, running block-by-block on a Cortex-M4F. Every output sample is then
+compared with a **double-precision Python reference**. It extends my Python project **ecg-dsp-toolkit** from
+*"works in NumPy"* to *"works in 16-bit integers on a microcontroller — and I can prove exactly how wrong it is"*.
+
+| | |
+|---|---|
+| 🧮 **20 implementations** | FIR (63/127/255 taps) and IIR × float32 · Q15 (CMSIS) · Q15 (hand-written, saturating) · Q31, plus a fixed-point **Pan–Tompkins** R-peak detector |
+| ⏱️ **Measured, not guessed** | DWT cycle counter, block-size sweep, stack painting, flash/RAM from the linker map and per-implementation isolated builds |
+| ✅ **Bit-exact verification** | The real Cortex-M4 binary (QEMU & Renode) gives *identical* integer outputs to the host build |
+| 🔬 **A real failure, explained** | The textbook Butterworth Q15 IIR collapses at 0.5 Hz (−16.6 dB SNR) — root-caused with a bit-exact model and fixed two ways |
+| 🔌 **Portable by design** | Hardware lives behind a 7-function interface; the ADC/UART input hook is already in place |
+
+<a id="finding"></a>
+### 🔬 The key finding
+
+> [!IMPORTANT]
+> **A 16-bit IIR is not just "a bit less accurate" than float — at a 0.5 Hz corner with fs = 360 Hz it is structurally broken.**
+> One Q14 coefficient step (6.1·10⁻⁵) is the same size as `1 + a₁ + a₂` (7.7·10⁻⁵) for the 0.5 Hz poles, and CMSIS's truncation bias is
+> amplified ≈ 12 900× inside the feedback loop. Q31, or a restructured filter with rounding, fixes it (details in [§5.6](#theory)).
+
+<p align="center">
+  <img src="results/example_synthetic/qemu_snr.png" alt="SNR of every implementation against the float64 reference" width="88%">
+  <br><sub><b>SNR vs the float64 reference for every implementation.</b> Synthetic ECG, real Cortex-M4 code in QEMU — a pipeline sanity run, not MIT-BIH results (see §0).</sub>
+</p>
+
+| Structure | Arithmetic | SNR vs float64 |
+|---|---|---|
+| Butterworth band-pass + notch | CMSIS Q15 (truncating) | ❌ **−16.6 dB** |
+| Butterworth band-pass + notch | Q31 | ✅ 82.4 dB |
+| 2× first-order HP + LP + notch ("hp1") | CMSIS Q15 (truncating) | ⚠️ 23.1 dB |
+| same | **hand-written Q15, rounding** | ✅ **50.1 dB** |
+| same | Q31 | 🏆 119 dB |
+
+<sub><i>Synthetic-ECG sandbox run on a simulated Cortex-M4 — re-run on MIT-BIH record 100 for your own numbers (see §0).</i></sub>
+
+<details>
+<summary><b>📑 Table of contents</b></summary>
+
+0. [What's verified — and what's yours to measure](#status)
+1. [System architecture](#architecture)
+2. [Quick start](#quickstart)
+3. [What each stage does](#stages)
+4. [Software details](#details)
+5. [Fixed-point theory](#theory)
+6. [FIR design note](#fir-note)
+7. [Pan–Tompkins R-peak detector](#pt)
+8. [Validation method](#validation)
+9. [Results](#results)
+10. [Trade-offs](#tradeoffs)
+11. [Troubleshooting](#troubleshooting)
+12. [Known limitations](#limitations)
+13. [📚 References](#references)
+
+</details>
+
+---
+
+<a id="status"></a>
+## ✅ 0. What's verified — and what's yours to measure
 
 | Item | Status |
 |---|---|
@@ -23,23 +95,25 @@ It extends my Python project **ecg-dsp-toolkit** (same filter specification), ta
 | Real Nucleo board, ST-LINK flashing, UART capture | Code written to the register level and cross-compiled, **never run on silicon by me** |
 | PlatformIO build | Config provided, **untested** (the CMake build is the tested path) |
 
-Nothing in this README is a hardware measurement unless it says so. Where I give a number I did not measure,
-it is labelled *expected range* and comes with the reasoning.
+> [!WARNING]
+> Nothing in this README is a **hardware** measurement unless it says so. Where I give a number I did not measure,
+> it is labelled *expected range* and comes with the reasoning.
 
-### Assumptions (no questions asked, so here they are)
+### 📝 Assumptions (stated up-front, no questions asked)
 
 1. **Board**: Nucleo-F411RE (Cortex-M4F, 128 KB RAM, 512 KB flash, ST-LINK virtual COM port on USART2/PA2). Your `[board]` placeholder was unspecified; any Cortex-M4F works – see §4.4 for porting.
 2. **Clock**: default HSI 16 MHz (no PLL) so the first run needs no clock debugging. `-DECG_USE_PLL=1` selects 96 MHz (F411 only, untested).
 3. **Sampling**: fs = 360 Hz, **60 Hz** notch (US mains, because MIT-BIH was recorded in the US). If you later feed a live ADC in India, change `NOTCH_HZ` in `scripts/common.py` to **50**.
 4. **Amplitude convention**: int16 sample = Q15 with **±5 mV full scale** (1 LSB = 0.153 µV). Record-100 MLII peaks are roughly ±1–2 mV, leaving ~2.5× headroom for filter overshoot.
-5. **Test signal**: first 10 s (3600 samples) of MIT-BIH `100`, channel 0 (MLII). Configurable (`--record --start --seconds`).
+5. **Test signal**: first 10 s (3600 samples) of MIT-BIH `100`, channel 0 (MLII). Configurable (`--record --start --seconds`). Data come from the MIT-BIH Arrhythmia Database on PhysioNet [1][2]; they are downloaded at export time and **not** redistributed in this repo.
 6. **Reference**: double precision, run on the *already int16-quantised* input, so the measured error isolates the *filter implementation*, not the ADC.
 7. **IIR "complete chain"** = band-pass **+** notch (one extra biquad). The FIR chain is band-pass only (a 63-tap or longer Hamming FIR already puts 60 Hz in its stop-band).
 8. **FIR lengths** 63 / 127 / 255 (odd, type-I linear phase; zero-padded by one tap internally because `arm_fir_q15` on Cortex-M4 requires an even count).
 
 ---
 
-## 1. System block diagram
+<a id="architecture"></a>
+## 🗺️ 1. System architecture
 
 ```mermaid
 flowchart LR
@@ -69,8 +143,11 @@ flowchart LR
   V --> X["results/ table + PNGs"]
 ```
 
-Timing/latency diagram: [`docs/timing_diagram.svg`](docs/timing_diagram.svg) (symbolic: T_fill = N/fs, T_proc = cycles/f_cpu,
-latency = T_fill + T_proc + group delay). Linker notes: [`docs/linker_notes.md`](docs/linker_notes.md).
+<p align="center">
+  <img src="docs/timing_diagram.svg" alt="Block timing and latency budget" width="92%">
+  <br><sub><b>Latency budget</b> (symbolic): T_fill = N/fs, T_proc = cycles/f_cpu, total delay = T_fill + T_proc + group delay.
+  Linker notes: <a href="docs/linker_notes.md"><code>docs/linker_notes.md</code></a></sub>
+</p>
 
 **The key design rule:** `firmware/src` and `firmware/inc` (portable) know nothing about the chip. They talk to the
 world only through `ecg_platform.h` (7 functions) and `ecg_source.h` (the input stream). A new board = one new
@@ -118,7 +195,8 @@ ecg-edge/
 
 ---
 
-## 2. Quick start
+<a id="quickstart"></a>
+## 🚀 2. Quick start
 
 ### 2.1 Prerequisites
 
@@ -165,7 +243,7 @@ make qemu-run
 export RENODE=/path/to/renode                    # omit if `renode` is on PATH
 make renode-run
 ```
-What simulators can and cannot tell you:
+What simulators (QEMU, Renode [21]) can and cannot tell you:
 
 * ✅ **Functional correctness**: they execute the real Thumb-2 + DSP-extension instructions, so Q15/Q31 integer results are bit-exact with silicon (I verified host == QEMU == Renode).
 * ❌ **Cycle counts**: neither models `DWT->CYCCNT`. The firmware detects this (`#META,has_cycle_counter,0`) and `validate.py` prints `n/a` rather than fake numbers.
@@ -210,10 +288,15 @@ add them to PlatformIO's linker script (`.ld`) – they are standard in ST's scr
 
 ---
 
-## 3. What each stage does (step-by-step explanation)
+<a id="stages"></a>
+## 🔍 3. What each stage does
+
+<details>
+<summary><b>Click to expand: the six stages, step by step</b></summary>
+
 
 **Step 1 — Python design (`common.py`, `export_headers.py`).**
-Golden filters are designed in float64: `firwin` (Hamming windowed-sinc, 0.5–40 Hz), `butter(...,'bandpass',output='sos')`, `iirnotch(60, Q=30)`.
+Golden filters are designed in float64: `firwin` (Hamming windowed-sinc, 0.5–40 Hz), `butter(...,'bandpass',output='sos')` (Butterworth response [15]), `iirnotch(60, Q=30)` — all via SciPy [20].
 Then each is converted to the exact byte pattern the CMSIS function expects (§5): time-reversed + even-length FIR taps,
 sign-flipped feedback coefficients, 6-per-stage layout for the Q15 biquad, `postShift`. The 10 s ECG segment is quantised to int16 and written
 as a `static const int16_t[]`. Every spec number lives once in `common.py` and is copied into `ecg_params.h`, so firmware and reference cannot disagree.
@@ -223,7 +306,7 @@ as a `static const int16_t[]`. Every spec number lives once in `common.py` and i
 
 **Step 3 — Pipeline (`ecg_pipeline.c`).** `source → process(block) → output buffer`. Block size is a run-time argument (≤ `ECG_MAX_BLOCK_SIZE`).
 The stream is processed **twice**: pass 1 warms the flash prefetch/cache and is discarded, pass 2 is timed. Each `process()` call is bracketed by
-two reads of `DWT->CYCCNT`; the cost of the measurement itself (`#META,timing_overhead_cycles`) is subtracted. We keep total cycles
+two reads of `DWT->CYCCNT` [17]; the cost of the measurement itself (`#META,timing_overhead_cycles`) is subtracted. We keep total cycles
 (→ cycles/sample), **maximum** block cycles (→ worst-case latency) and minimum.
 
 **Step 4 — Input hook (`ecg_source.h`).** `ecg_source_vector` replays flash data (deterministic validation). `ecg_source_ring` is an SPSC ring buffer
@@ -235,9 +318,16 @@ Every implementation's output is printed in **int16-LSB units** (float ×32768, 
 **Step 6 — Validation (`validate.py`).** Checks the echoed input equals the exported vector bit-for-bit (catches stale headers),
 then per implementation: `SNR = 10·log10(Σref² / Σ(y−ref)²)`, max |error|, bias, and the *ceiling* (SNR of simply rounding the exact answer to integers – no int16 implementation can beat it).
 
+</details>
+
 ---
 
-## 4. Software details worth knowing
+<a id="details"></a>
+## 🧰 4. Software details
+
+<details>
+<summary><b>Click to expand: log format, stack, flash/RAM, porting</b></summary>
+
 
 ### 4.1 Log format (parsed by `common.parse_log`)
 ```
@@ -260,9 +350,12 @@ No heap exists, so this is the complete dynamic-memory story. Result is printed 
 Create `firmware/board/<yours>/` with `platform_cycles.h` (`return DWT->CYCCNT;`), a file implementing the functions in `ecg_platform.h`
 (UART pins and clock tree are the only chip-specific parts), startup code and a linker script, and add the directory to `CMakeLists.txt`. Nothing in `src/` changes. For a Cortex-M7 add `-mcpu=cortex-m7 -mfpu=fpv5-d16`; for M0/M3 there is no DSP extension and no DWT cycle counter on M0 (use SysTick).
 
+</details>
+
 ---
 
-## 5. Fixed-point theory (the part interviewers ask about)
+<a id="theory"></a>
+## 🧮 5. Fixed-point theory
 
 ### 5.1 Q formats
 Qm.n = signed integer interpreted as `value = int / 2ⁿ`. ARM/CMSIS write **Q1.15** (1 sign bit + 15 fraction bits = 16 bits, abbreviated **Q15**):
@@ -281,7 +374,7 @@ Saturation clamps instead (`SSAT`, `QADD`, `QSUB` are single-cycle instructions 
 in the same width**; widen the accumulator wherever it is free. `rail_hits` in the log counts output samples sitting on ±full-scale, a cheap overflow detector.
 
 ### 5.4 Quantisation noise and the 6 dB/bit rule
-Rounding to a grid of step Δ adds error uniformly distributed in ±Δ/2: power Δ²/12. For a full-scale sine and B bits
+Rounding to a grid of step Δ adds error uniformly distributed in ±Δ/2: power Δ²/12 [13]. For a full-scale sine and B bits
 `SQNR = 6.02·B + 1.76 dB` (98 dB for B=16): **each extra bit buys 6.02 dB** because it halves Δ (20·log₁₀2).
 A real ECG uses only part of the range: with rms ≈ 0.05–0.1 of full scale you lose 20–26 dB, so the *ceiling* for an int16 output is ≈ 72–78 dB. That is the "ideal" column in `validate.py`.
 Other noise sources: coefficient quantisation (moves poles/zeros: changes the *response*, not the noise), and **recursive feedback** (IIR) which amplifies rounding noise by the gain of 1/A(z).
@@ -291,14 +384,14 @@ Windowed-sinc taps are all |h| < 1 (max ≈ 0.2), so they fit Q15 directly with 
 (visible as bias ≈ −0.45…−0.6 LSB in the results), and cost ≈ 4–6 dB of SNR versus rounding in my sandbox run. My manual FIR adds half an LSB before shifting.
 
 ### 5.6 IIR (biquad) in Q15 — coefficient scaling and `postShift`
-**CMSIS conventions (all handled in `common.py`):** equation `y[n] = b0x[n] + b1x[n-1] + b2x[n-2] + a1'y[n-1] + a2'y[n-2]` with **a1' = −a1, a2' = −a2** (opposite of scipy);
+**CMSIS conventions [16] (all handled in `common.py`):** equation `y[n] = b0x[n] + b1x[n-1] + b2x[n-2] + a1'y[n-1] + a2'y[n-2]` with **a1' = −a1, a2' = −a2** (opposite of scipy);
 Q15 layout is **6 values/stage `{b0, 0, b1, b2, a1', a2'}`** (the 0 pads b0 into a SIMD word); state is 4 words/stage (`x[n-1], x[n-2], y[n-1], y[n-2]`).
 
 **Why scaling is needed.** A Q15 coefficient must satisfy |c| < 1, but a low-frequency pole pair has a1' = 2r·cos θ ≈ **1.98**.
 CMSIS therefore takes a `postShift` p: stored integer `q = round(c · 2^(15−p))`, and the kernel computes `y = (Σ q·s) >> (15−p)`, so the real coefficient is `q·2^p / 2^15`.
 `p = 1` ⇒ Q14 (range ±2), `p = 2` ⇒ Q13 (±4). `choose_post_shift()` picks the smallest p with max|c| < 2^p. The price: each +1 in p costs **one coefficient bit** (precision halves).
 
-**Section scaling.** `--iir-scale linf` divides each section's numerator by that section's peak gain and puts the product back into the last section – the overall transfer function is unchanged, but no inner node can exceed the input level (no clipping inside the cascade) and inner signals stay as large as safely possible. For Butterworth order 4 this pushed the last section above 2.0 and forced p=2; `--iir-scale none` is provided to compare. Both fail the same way (below).
+**Section scaling.** (L∞/Lp-norm scaling follows Jackson [11].) `--iir-scale linf` divides each section's numerator by that section's peak gain and puts the product back into the last section – the overall transfer function is unchanged, but no inner node can exceed the input level (no clipping inside the cascade) and inner signals stay as large as safely possible. For Butterworth order 4 this pushed the last section above 2.0 and forced p=2; `--iir-scale none` is provided to compare. Both fail the same way (below).
 
 **What actually happens at 0.5 Hz / fs = 360 Hz (measured, bit-exact model in `scripts/diagnose_q15_iir.py`):**
 
@@ -314,7 +407,7 @@ CMSIS therefore takes a `postShift` p: stored integer `q = round(c · 2^(15−p)
 
 (All on the synthetic segment; rerun on record 100 for your numbers.)
 
-The failure of the Butterworth Q15 IIR is **structural**, not a bug (Q31 with identical coefficient conventions works):
+The failure of the Butterworth Q15 IIR is **structural**, not a bug (Q31 with identical coefficient conventions works). The ingredients — coefficient sensitivity near z = 1, round-off noise amplified by the loop gain, and dynamic-range scaling — are classical results in finite-word-length filter theory [10][11][12]:
 
 1. The 0.5 Hz poles sit at radius ≈ 0.991. For that section `A(1) = 1 + a1 + a2 = 7.7×10⁻⁵` and the DC gain of the feedback path is `1/A(1) ≈ 12 900`.
 2. One Q14 coefficient step is 6.1×10⁻⁵ ≈ A(1): **a single LSB of rounding in a1 or a2 changes the DC gain by ~80 %** – the pole position is essentially random (`plot_responses.py` shows the corner moving).
@@ -329,16 +422,18 @@ Transposed DF2 (used for float): only 2 state words/section and good float behav
 
 ---
 
-## 6. FIR design note: why 0.5 Hz is awkward for a FIR
-A Hamming window has a main-lobe width ≈ 3.3·fs/N. For a 0.5 Hz edge you would need N ≈ 2400 taps; with N = 255 the transition is ≈ 4.7 Hz wide, so
-the high-pass edge is soft: baseline wander below ≈ 2 Hz is only partly removed and the response at 0.5 Hz is far from −3 dB. That is a *design* limitation, not a *quantisation* one;
+<a id="fir-note"></a>
+## 📉 6. FIR design note: why 0.5 Hz is awkward for a FIR
+A Hamming-windowed FIR has a transition width ≈ 3.3·fs/N [10][14]. For a 0.5 Hz edge you would need N ≈ 2400 taps; with N = 255 the transition is ≈ 4.7 Hz wide, so
+the high-pass edge is soft: baseline wander (a slow electrode/respiration artefact [9]) below ≈ 2 Hz is only partly removed and the response at 0.5 Hz is far from −3 dB. That is a *design* limitation, not a *quantisation* one;
 `validate.py` measures only the latter (vs the same filter in float64), and `plot_responses.py` shows the former. Group delay is (N−1)/2 samples: 86 / 175 / 353 ms for 63 / 127 / 255 taps
-– too long for beat-by-beat feedback, fine for display/storage. Long FIRs are cheap in cycles but expensive in latency; IIR is the opposite.
+– too long for beat-by-beat feedback, fine for display/storage. Long FIRs are cheap in cycles but expensive in latency; IIR is the opposite. Phase matters clinically: aggressive high-pass filtering with non-linear phase can distort the ST segment, which is why the ECG standards discuss bandwidth and filter phase explicitly [7][8].
 
 ---
 
-## 7. Optional stretch: Pan-Tompkins R-peak detector (`ecg_pan_tompkins.c`)
-Integer-only chain: 5–15 Hz Butterworth (2 biquads, Q15) → 5-point derivative → squaring (kept in 32 bit, `>>6`, **not** shifted back to Q15 – QRS slopes are only hundreds of LSB, a Q15 square would have 3–4 bits of resolution) →
+<a id="pt"></a>
+## 💓 7. Optional stretch: Pan–Tompkins R-peak detector (`ecg_pan_tompkins.c`)
+Integer-only chain after Pan & Tompkins [3] and Hamilton & Tompkins [4]: 5–15 Hz Butterworth (2 biquads, Q15) → 5-point derivative → squaring (kept in 32 bit, `>>6`, **not** shifted back to Q15 – QRS slopes are only hundreds of LSB, a Q15 square would have 3–4 bits of resolution) →
 150 ms moving-window integral (54 samples @ 360 Hz) → adaptive thresholds (SPKI/NPKI, THR1 = NPKI + ¼(SPKI−NPKI)), 200 ms refractory, T-wave rejection (slope < ½ of the previous QRS), search-back at 1.66×RR. R location is refined by an arg-max on the band-passed signal.
 Not implemented: the 2 s learning phase and the second threshold pair of the original paper.
 
@@ -350,22 +445,24 @@ cmake -S firmware -B build/host_long -DECG_TARGET=host -DECG_GEN_DIR=$PWD/build/
 python scripts/validate.py --log results/long/pt.log --reference results/long/reference.npz --meta results/long/meta.json \
                            --out-dir results/long --label pt --tol-ms 150
 ```
-`validate.py` counts only *beat* annotation symbols (`N L R B A a J S V r F e j n E / f Q ?`), matches each to the nearest detection within ±150 ms (AAMI EC57) and reports TP/FP/FN, sensitivity Se = TP/(TP+FN), PPV = TP/(TP+FP) and the mean detection offset
-(≈ the band-pass group delay; subtract it if you need sample-accurate R positions). Typical literature values for PT-style detectors on MIT-BIH are Se/PPV ≈ 98–99.5 % overall, but **record 100 is one of the easy ones; report what *you* measure**.
+`validate.py` counts only *beat* annotation symbols (`N L R B A a J S V r F e j n E / f Q ?`), matches each to the nearest detection within ±150 ms (the AAMI EC57 convention [6]) and reports TP/FP/FN, sensitivity Se = TP/(TP+FN), PPV = TP/(TP+FP) and the mean detection offset
+(≈ the band-pass group delay; subtract it if you need sample-accurate R positions). For context: Pan & Tompkins reported 99.3 % of QRS complexes detected [3]; a later comparison reports 99.68 % sensitivity / 99.63 % positive predictivity for the Hamilton–Tompkins variant on a standard dataset [4][5]. Record 100 is generally regarded as a clean record, so **report what *you* measure, not these figures**.
 
 ---
 
-## 8. Validation method
+<a id="validation"></a>
+## 🧪 8. Validation method
 * **SNR** = 10·log₁₀(Σ ref² / Σ (y − ref)²), all in int16-LSB units; also reported with the error's DC removed (`SNR, DC removed`) because a constant offset is harmless for AC-coupled ECG but dominates the plain SNR when bias is large.
 * **Ceiling** = same formula for `round(ref)`: the best any int16 output can do on this signal.
 * **ENOB** = (SNR − 1.76)/6.02 is in the CSV.
-* **Max abs error** in LSB and µV (1 LSB = 0.1526 µV). For reference, an ECG diagnostic tolerance of a few µV is ≈ 10–30 LSB.
+* **Max abs error** in LSB and µV (1 LSB = 0.1526 µV). For scale: a P wave is on the order of 100 µV ≈ 650 LSB, so a 1–2 LSB error is ≈ 0.15–0.3 µV.
 * `--cross host_run.log` verifies the MCU's integer outputs are *bit-identical* to the host build (float rows may differ by < 1 LSB because of FMA/summation order).
 * Overlays (`*_overlay.png`), SNR bars (`*_snr.png`), block-size sweep (`*_block_sweep.png`, hardware only), R-peak plot (`*_peaks.png`) and frequency responses (`freq_responses.png`).
 
 ---
 
-## 9. Results
+<a id="results"></a>
+## 📊 9. Results
 
 ### 9.1 What I measured (sandbox: synthetic ECG, QEMU Cortex-M4, flash/RAM via `footprint.py`)
 *Data-dependent columns (SNR) are for the synthetic signal – do not quote. Flash/RAM Δ are measured and are independent of the data; they are the **stand-alone** cost of
@@ -403,6 +500,24 @@ Reading the table:
 * **`iirK_q15` is unusable at this corner (§5.6)**; `iirh_q15r` (50 dB) and `iirK_q31` (75–82 dB) are the working fixed-point IIRs.
 * **FIR Q15 RAM** is dominated by CMSIS state (`numTaps+block` words) – Q15 halves it vs float.
 
+<details>
+<summary><b>🖼️ Plots from the sandbox run (synthetic ECG, simulated Cortex-M4)</b></summary>
+
+<p align="center">
+  <img src="results/example_synthetic/qemu_overlay.png" alt="Output overlays and error traces" width="95%"><br>
+  <sub><b>Overlays and error traces.</b> Note the huge DC offset of the Butterworth Q15 rows (orange) versus the well-behaved hp1 rows.</sub>
+</p>
+<p align="center">
+  <img src="results/example_synthetic/freq_responses.png" alt="Frequency responses, float64 vs quantised coefficients" width="95%"><br>
+  <sub><b>Frequency responses</b>, float64 design vs quantised coefficients — bottom-right zooms on the 0.5 Hz corner.</sub>
+</p>
+<p align="center">
+  <img src="results/example_synthetic/qemu_peaks.png" alt="Pan-Tompkins detections" width="95%"><br>
+  <sub><b>Fixed-point Pan–Tompkins</b> detections vs annotations (synthetic signal: pipeline check only).</sub>
+</p>
+
+</details>
+
 ### 9.2 What YOU must fill in: cycles, latency, CPU load (hardware)
 Run §2.4. `validate.py` then writes `results/mcu_results_table.md` with every column below filled in from the DWT counter. How each number is obtained:
 
@@ -434,7 +549,8 @@ Block-size sweep: expect cycles/sample to fall steeply from block = 1 to ≈ 16 
 
 ---
 
-## 10. Trade-offs: accuracy vs speed vs memory
+<a id="tradeoffs"></a>
+## ⚖️ 10. Trade-offs: accuracy vs speed vs memory
 
 | Choice | Accuracy | Speed | Memory | Latency |
 |---|---|---|---|---|
@@ -449,7 +565,12 @@ Rule of thumb from this project: **fixed-point is "free" for FIRs, treacherous f
 
 ---
 
-## 11. Troubleshooting
+<a id="troubleshooting"></a>
+## 🛠️ 11. Troubleshooting
+
+<details>
+<summary><b>Click to expand: symptom → cause → fix</b></summary>
+
 
 | Symptom | Likely cause / fix |
 |---|---|
@@ -469,63 +590,106 @@ Rule of thumb from this project: **fixed-point is "free" for FIRs, treacherous f
 | Renode: log empty | `CreateFileBackend` needs an absolute path: use `run_renode.sh`; check `$RENODE` |
 | QEMU prints nothing on stdout | semihosting console goes to **stderr** (`2> results/qemu_run.log`) |
 
----
-
-## 12. Interview Q&A
-
-**Q1. Why Q15 and not float on a Cortex-M4F?** The M4F has an FPU, so float is fine here. Q15 matters on FPU-less cores (M0/M3/M0+), for energy (integer SIMD does two MACs per cycle), and for memory (half the state). This project measures the cost of that choice.
-
-**Q2. What does Q1.15 mean and what is the product format?** 1 sign bit, 15 fraction bits, value = int/2¹⁵. Q15×Q15 = Q2.30; shift right 15 and saturate to return to Q15.
-
-**Q3. Overflow vs saturation?** Wrap-around turns +full-scale into −full-scale (a spike); saturation clamps. Use saturating ops (SSAT/QADD) where narrowing; use a wide accumulator where it is free (SMLALD 64-bit).
-
-**Q4. Why ~6 dB per bit?** Quantisation step halves per bit; noise power Δ²/12 drops 4× = 6.02 dB. SQNR = 6.02B + 1.76 dB for a full-scale sine; an ECG that uses only a fraction of full scale gets less.
-
-**Q5. What is `postShift` in the CMSIS Q15 biquad?** The coefficients are stored as `c·2^(15−p)` and the 64-bit accumulator is shifted right by `15−p`. It lets coefficients up to ±2^p be represented (a1 ≈ 1.98 needs p=1) at the cost of p bits of coefficient precision.
-
-**Q6. CMSIS biquad quirks?** a1/a2 sign-flipped vs scipy; Q15 layout is 6 per stage with a padding zero; state 4 words per stage; DF1 for fixed-point, DF2T for float.
-
-**Q7. Your Q15 IIR gave −16 dB. How did you debug it?** Wrote a bit-exact Python model of the kernel (verified equal to the C output), then computed A(1)=1+a1+a2 ≈ 7.7e-5 for the 0.5 Hz section: equal to one coefficient LSB, so the DC gain is quantisation noise, and the −0.5 LSB truncation bias × 1/A(1)≈12 900 gives thousands of LSB of offset. Fixed by Q31, or by restructuring into first-order sections plus round-to-nearest (50 dB).
-
-**Q8. Why does truncation matter?** Floor-shifting biases every output by −½ LSB. In an FIR that is a small DC error; in an IIR it is injected inside the feedback loop and amplified by the loop's DC gain.
-
-**Q9. FIR vs IIR for ECG?** FIR: linear phase (no morphology distortion), always stable, trivially fixed-point, but long (0.5 Hz edge needs thousands of taps) and delayed 86–353 ms. IIR: few coefficients and ms of delay, but non-linear phase and ill-conditioned for narrow low-frequency features. Clinical standards (e.g. AHA) care about phase for ST analysis; monitors often use forward-backward or linear-phase high-pass.
-
-**Q10. How did you measure cycles?** DWT->CYCCNT around `process()`, overhead of the read pair subtracted, two passes (warm-up discarded), max block for worst case; converted with the real core clock. QEMU/Renode lack DWT, so I used them only for functional checks.
-
-**Q11. How did you verify the embedded code without hardware?** Host build of the same portable C, plus the real Thumb-2 binary in QEMU and Renode; integer outputs were bit-identical across the three, and a Python bit-exact model matched too. Hardware then only adds timing.
-
-**Q12. Why block processing?** Amortises call/state overhead, lets SIMD kernels run on long vectors, and allows sleeping between blocks – at the cost of N/fs latency. The block-size sweep quantifies it.
-
-**Q13. What limits your latency?** T_fill (N/fs) + compute (max block cycles/f_cpu) + the filter's group delay; the last dominates for long FIRs.
-
-**Q14. How is stack usage measured?** Stack painting: fill free RAM with a pattern, run, scan from the bottom for the first overwritten word. There is no heap, so static RAM + stack high-water is the full memory story.
-
-**Q15. What would you change for a live ADC?** Timer-triggered ADC so the sample period is exact, ISR pushes into the SPSC ring (`ecg_source_ring`), main loop sleeps (WFI) and processes full blocks; change the notch to the local mains frequency; use DMA double-buffering for higher rates.
-
-**Q16. Pan-Tompkins in fixed point – what's tricky?** Dynamic range: squaring needs 32 bits, the window sum needs a pre-shift to avoid overflow, thresholds are absolute counts (so they depend on gain/full-scale), and windows must be rescaled from the 200 Hz of the paper to 360 Hz.
+</details>
 
 ---
 
-## 13. Day-by-day checklist (≈ 7 working days)
-
-- [ ] **Day 1 – environment.** Install toolchain, `pip install -r requirements.txt`, `./scripts/fetch_deps.sh`. `python scripts/export_headers.py` (real record 100). Read the quantisation report; open `results/meta.json`. *Commit.*
-- [ ] **Day 2 – host build.** `make host-run`. Confirm "input echo identical". Read `results/host_results_table.md`; look at `host_overlay.png`. Run `python scripts/plot_responses.py`. Explain to yourself why FIR f32 ≈ 130 dB and Q15 ≈ 70 dB.
-- [ ] **Day 3 – simulators.** `make qemu-run`, then Renode (`make renode-run`). Check `--cross` says integer rows are bit-identical. Run `python scripts/diagnose_q15_iir.py`; write 5 lines on why Butterworth Q15 fails.
-- [ ] **Day 4 – hardware bring-up.** `make nucleo`, flash, `capture_uart.py`, press RESET. Get a clean log (`#DONE`). Run `validate.py --label mcu --cross results/host_run.log`.
-- [ ] **Day 5 – measurements.** Fill §9.2: cycles/sample, CPU load, latency from `mcu_results_table.md`; run `footprint.py` and `map_report.py`; compare to the expected-range table; try `make nucleo-pll` and `-DECG_BLOCK_SIZE`. Save `*_block_sweep.png`.
-- [ ] **Day 6 – experiments.** Sweep `--fir-taps`, `--iir-scale none|linf`, `-Os`/`-O3` (footprint with `--opt`). Long-record R-peak evaluation (§7). Try a different segment (`--start 600`) or a record with arrhythmias.
-- [ ] **Day 7 – portfolio polish.** Replace `results/example_synthetic` references with *your* `results/` outputs; add your table to the README (§9.2); add a photo of the board + terminal screenshot; rehearse the interview Q&A; tag `v1.0`.
-- [ ] **Stretch.** ADC+TIM2 live input through `ecg_source_ring`; `arm_biquad_cas_df1_32x64_q31`; int8 classifier from ecg-ml with CMSIS-NN.
-
----
-
-## 14. Known limitations
+<a id="limitations"></a>
+## ⚠️ 12. Known limitations
 * Not run on real silicon or on real MIT-BIH data by the author of this scaffold; the synthetic-data numbers are for pipeline checking only.
 * QEMU/Renode give functional results, not timing.
 * `ECG_USE_PLL=1` (96 MHz) and the PlatformIO config are untested.
 * The FIR high-pass edge at 0.5 Hz is soft by construction (§6).
 * Pan-Tompkins thresholds (`PT_MIN_THR`) are in absolute counts for the ±5 mV full-scale convention; change them if you change the scaling.
+* **Not implemented (stretch goal):** an int8 ECG beat classifier from my `ecg-ml` project, via CMSIS-NN [18] / integer-only inference [19].
 * CMSIS-DSP's generic C kernels (host) and SIMD kernels (M4) produced identical integers *here*; other CMSIS-DSP versions may differ in rounding details – keep the pinned versions.
 
 Licence: MIT for this repository's code; CMSIS-DSP/CMSIS-Core are Apache-2.0; STM32 device headers are under ST's licence; MIT-BIH data are under the PhysioNet Open Data licence.
+
+---
+
+<a id="references"></a>
+## 📚 13. References
+
+> **How to read this list.** ✅ = I looked the entry up online while preparing this README (title, venue, year, DOI/identifier).
+> 📖 = standard textbook / standard document cited from my knowledge, *not* re-checked — confirm volume and page details in your library
+> before citing it in a formal paper. This project **combines** these sources; it does not claim to reproduce any single paper's numbers.
+
+### 💡 Where the idea comes from
+
+1. **My own `ecg-dsp-toolkit`.** The filter specification (0.5–40 Hz FIR/Butterworth band-pass + 60 Hz notch at 360 Hz) comes from it. ECG-Edge asks the next question: *what happens to exactly these filters in 16-bit integer arithmetic on a microcontroller?*
+2. **The classic embedded-ECG lineage.** Pan & Tompkins designed their QRS detector to run in real time without heavy computation [3] — the same constraint a Cortex-M faces. Hamilton & Tompkins refined it on the MIT-BIH database [4]. The fixed-point `pt_q15` module follows this line.
+3. **Finite-word-length filter theory.** Coefficient sensitivity, round-off noise and dynamic-range scaling [10][11][12][13] explain *why* the Q15 Butterworth IIR fails at 0.5 Hz — the project's central finding.
+4. **The ARM DSP ecosystem.** CMSIS-DSP supplies the Q15/Q31 kernels and their conventions (`postShift`, coefficient layout); CMSIS-NN [18] and integer-only inference [19] motivate the int8 classifier stretch goal.
+
+### 🫀 ECG data and benchmarking
+
+| # | | Reference |
+|---|---|---|
+| [1] | ✅ | G. B. Moody and R. G. Mark, "The impact of the MIT-BIH Arrhythmia Database," *IEEE Engineering in Medicine and Biology Magazine*, vol. 20, no. 3, pp. 45–50, 2001. doi:[10.1109/51.932724](https://doi.org/10.1109/51.932724) |
+| [2] | ✅ | A. L. Goldberger *et al.*, "PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals," *Circulation*, vol. 101, no. 23, pp. e215–e220, 2000. doi:[10.1161/01.CIR.101.23.e215](https://doi.org/10.1161/01.CIR.101.23.e215) |
+
+### 💓 QRS detection
+
+| # | | Reference |
+|---|---|---|
+| [3] | ✅ | J. Pan and W. J. Tompkins, "A real-time QRS detection algorithm," *IEEE Transactions on Biomedical Engineering*, vol. BME-32, no. 3, pp. 230–236, Mar. 1985. doi:[10.1109/TBME.1985.325532](https://doi.org/10.1109/TBME.1985.325532) |
+| [4] | ✅ | P. S. Hamilton and W. J. Tompkins, "Quantitative investigation of QRS detection rules using the MIT/BIH arrhythmia database," *IEEE Transactions on Biomedical Engineering*, vol. BME-33, pp. 1157–1165, 1986. |
+| [5] | ✅ | N. M. Arzeno, Z.-D. Deng and C.-S. Poon, "Analysis of first-derivative based QRS detection algorithms," *IEEE Transactions on Biomedical Engineering*, vol. 55, no. 2, pp. 478–484, Feb. 2008. |
+| [6] | 📖 | ANSI/AAMI EC57:2012, *Testing and reporting performance results of cardiac rhythm and ST segment measurement algorithms* (beat-matching convention used for sensitivity / PPV). |
+
+### 〰️ ECG bandwidth and pre-processing
+
+| # | | Reference |
+|---|---|---|
+| [7] | ✅ | P. Kligfield *et al.*, "Recommendations for the standardization and interpretation of the electrocardiogram — Part I: The electrocardiogram and its technology," *Circulation*, vol. 115, pp. 1306–1324, 2007 (co-published in *J. Am. Coll. Cardiol.*, doi:[10.1016/j.jacc.2007.01.024](https://doi.org/10.1016/j.jacc.2007.01.024)). Context for ECG bandwidth and digital filtering. |
+| [8] | 📖 | J. J. Bailey *et al.*, "Recommendations for standardization and specifications in automated electrocardiography: bandwidth and digital signal processing," *Circulation*, vol. 81, no. 2, pp. 730–739, 1990. |
+| [9] | 📖 | L. Sörnmo and P. Laguna, *Bioelectrical Signal Processing in Cardiac and Neurological Applications*, Elsevier Academic Press, 2005. |
+
+> **Note on the band used here.** 0.5–40 Hz is a *monitoring-style* band, narrower than the diagnostic bandwidths discussed in [7][8]; aggressive high-pass filtering can distort the ST segment, which is why this project reports the FIR/IIR group delay and phase behaviour explicitly (§6, §10).
+
+### 🧮 Fixed-point filter theory
+
+| # | | Reference |
+|---|---|---|
+| [10] | 📖 | A. V. Oppenheim and R. W. Schafer, *Discrete-Time Signal Processing*, 3rd ed., Pearson, 2010 — finite-precision effects: coefficient quantisation, round-off noise, limit cycles. |
+| [11] | ✅ | L. B. Jackson, "On the interaction of roundoff noise and dynamic range in digital filters," *Bell System Technical Journal*, vol. 49, no. 2, 1970 — L<sub>p</sub>-norm dynamic-range scaling (basis of this project's `--iir-scale linf`). |
+| [12] | ✅ | L. B. Jackson, "Roundoff noise bounds derived from coefficient sensitivities for digital filters," *IEEE Transactions on Circuits and Systems*, vol. 23, no. 8, pp. 481–485, 1976. doi:[10.1109/TCS.1976.1084247](https://doi.org/10.1109/TCS.1976.1084247) — links coefficient sensitivity to round-off noise (cf. §5.6, poles near z = 1). |
+| [13] | 📖 | B. Widrow and I. Kollár, *Quantization Noise: Roundoff Error in Digital Computation, Signal Processing, Control, and Communications*, Cambridge University Press, 2008 — Δ²/12 model, ≈ 6 dB per bit. |
+| [14] | 📖 | F. J. Harris, "On the use of windows for harmonic analysis with the discrete Fourier transform," *Proceedings of the IEEE*, vol. 66, no. 1, pp. 51–83, 1978 — window design (Hamming windowed-sinc FIR). |
+| [15] | 📖 | S. Butterworth, "On the theory of filter amplifiers," *Wireless Engineer*, vol. 7, pp. 536–541, 1930. |
+
+### 🔧 Embedded implementation and ML
+
+| # | | Reference |
+|---|---|---|
+| [16] | ✅ | Arm, **CMSIS-DSP v1.16.2** — documentation and source (read for the Q15/Q31 `postShift` semantics, biquad coefficient layout and truncating shift). <https://github.com/ARM-software/CMSIS-DSP> |
+| [17] | 📖 | Arm, *ARMv7-M Architecture Reference Manual* (DDI 0403) — DWT cycle counter, DSP-extension instructions (`SMLALD`, `QADD`, `SSAT`). |
+| [18] | ✅ | L. Lai, N. Suda and V. Chandra, "CMSIS-NN: Efficient neural network kernels for Arm Cortex-M CPUs," arXiv:[1801.06601](https://arxiv.org/abs/1801.06601), 2018. |
+| [19] | 📖 | B. Jacob *et al.*, "Quantization and training of neural networks for efficient integer-arithmetic-only inference," *IEEE/CVF CVPR*, 2018 — int8 quantisation scheme behind the planned classifier. |
+
+### 🧰 Tools
+
+| # | | Reference |
+|---|---|---|
+| [20] | 📖 | P. Virtanen *et al.*, "SciPy 1.0: fundamental algorithms for scientific computing in Python," *Nature Methods*, vol. 17, pp. 261–272, 2020. (`firwin`, `butter`, `iirnotch`, `sosfilt`) |
+| [21] | 📖 | QEMU — <https://www.qemu.org> · Renode (Antmicro) — <https://renode.io> · `wfdb` Python package — <https://github.com/MIT-LCP/wfdb-python> |
+
+### ✍️ Cite this project
+
+```bibtex
+@software{ecg_edge,
+  author = {shaurXePo},
+  title  = {ECG-Edge: real-time fixed-point ECG filtering on an ARM Cortex-M4},
+  year   = {2026},
+  url    = {https://github.com/shaurXePo/ecg-edge}
+}
+```
+
+---
+
+<div align="center">
+
+**⚡ ECG-Edge** · built by [shaurXePo](https://github.com/shaurXePo) · [⬆ back to top](#top)
+
+</div>
