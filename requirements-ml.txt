@@ -1,0 +1,6 @@
+# training the classifier and running the experiment (the web app itself only needs app/requirements.txt)
+-r requirements.txt
+torch>=2.0          # CPU build: pip install torch --index-url https://download.pytorch.org/whl/cpu
+streamlit>=1.30
+pandas>=2.0
+pytest>=7.0

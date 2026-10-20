@@ -7,3 +7,9 @@ third_party/
 firmware/inc/generated/
 results/ecg_segment.npz
 results/reference.npz
+.venv/
+runs/
+cache/
+mitdb.zip
+tmp_mitdb/
+.pytest_cache/
